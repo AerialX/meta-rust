@@ -1,0 +1,11 @@
+diff -ruN a/src/liballoc_system/Cargo.toml b/src/liballoc_system/Cargo.toml
+--- a/src/liballoc_system/Cargo.toml	2018-01-25 18:06:31.065582289 -0500
++++ b/src/liballoc_system/Cargo.toml	2018-01-25 18:06:37.519038829 -0500
+@@ -13,7 +13,3 @@
+ alloc = { path = "../liballoc" }
+ core = { path = "../libcore" }
+ libc = { path = "../rustc/libc_shim" }
+-
+-# See comments in the source for what this dependency is
+-[target.'cfg(all(target_arch = "wasm32", not(target_os = "emscripten")))'.dependencies]
+-dlmalloc = { path = "../rustc/dlmalloc_shim" }

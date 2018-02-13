@@ -1,0 +1,138 @@
+diff --git a/src/libstd/Cargo.toml b/src/libstd/Cargo.toml
+index 29bd28b..8d33666 100644
+--- a/src/libstd/Cargo.toml
++++ b/src/libstd/Cargo.toml
+@@ -6,6 +6,6 @@ build = "build.rs"
+ [lib]
+ name = "std"
+ path = "lib.rs"
+-crate-type = ["dylib", "rlib"]
++crate-type = ["rlib"]
+ 
+ [dependencies]
+diff --git a/sysroot/Cargo.toml b/sysroot/Cargo.toml
+new file mode 100644
+index 0000000..0b2a74e
+--- /dev/null
++++ b/sysroot/Cargo.toml
+@@ -0,0 +1,11 @@
++[package]
++name = "sysroot"
++version = "1.0.0"
++authors = ["The Rust Project Developers"]
++
++[lib]
++path = "dummy.rs"
++
++[dependencies]
++compiler-rt = { path = "compiler-rt" }
++std = { path = "../src/libstd", features = ["panic-unwind", "force_alloc_system"] }
+diff --git a/sysroot/compiler-rt/Cargo.toml b/sysroot/compiler-rt/Cargo.toml
+new file mode 100644
+index 0000000..1b67661
+--- /dev/null
++++ b/sysroot/compiler-rt/Cargo.toml
+@@ -0,0 +1,14 @@
++[package]
++name = "compiler-rt"
++version = "1.0.0"
++authors = ["The Rust Project Developers"]
++links = "compiler_rt"
++build = "build.rs"
++
++[lib]
++name = "compiler_rt"
++path = "../dummy.rs"
++
++[build-dependencies]
++gcc = "0.3"
++cmake = "0.1"
+diff --git a/sysroot/compiler-rt/build.rs b/sysroot/compiler-rt/build.rs
+new file mode 100644
+index 0000000..6cb0910
+--- /dev/null
++++ b/sysroot/compiler-rt/build.rs
+@@ -0,0 +1,53 @@
++extern crate gcc;
++extern crate cmake;
++
++use std::path::PathBuf;
++use std::{fs, env};
++
++fn main() {
++    let out_dir = PathBuf::from(&env::var_os("OUT_DIR").unwrap());
++    let target = env::var("TARGET").unwrap();
++
++    let dir = env::current_dir().unwrap();
++    let compiler_rt = dir.join("../../src/libcompiler_builtins/compiler-rt");
++
++    let arch = target.split('-').next().unwrap();
++
++    let config = gcc::Config::new().get_compiler();
++    let cflags = config.args().into_iter().cloned()
++        .map(|c| c.into_string().unwrap())
++        .fold(String::new(), |mut args, arg| {
++            args.push_str(&arg);
++            args.push(' ');
++            args
++        });
++
++    let mut cfg = cmake::Config::new(compiler_rt);
++    cfg.target(&target)
++       .host(&env::var("HOST").unwrap())
++       .out_dir(&out_dir)
++       .profile("Release")
++       .define("COMPILER_RT_DEFAULT_TARGET_TRIPLE", &target)
++       .define("COMPILER_RT_BUILD_SANITIZERS", "OFF")
++       .define("CMAKE_C_FLAGS", &cflags)
++       .define("CMAKE_CXX_FLAGS", &cflags)
++       .define("CMAKE_C_COMPILER", config.path())
++       .define("CMAKE_CXX_COMPILER", config.path());
++
++    let builtins_arch = match arch {
++        "i586" => "i386",
++        "arm" | "armv7" | "armv7e" if target.contains("eabihf") => "armhf",
++        "armv5te" => "arm",
++        _ => arch,
++    };
++    let target = format!("clang_rt.builtins-{}", builtins_arch);
++    cfg.build_target(&target);
++    cfg.build();
++
++    let lib = out_dir.join(format!("build/lib/linux/lib{}.a", target));
++    fs::copy(&lib, &out_dir.join("../../../deps/libcompiler-rt.a")).unwrap();
++    fs::rename(&lib, &out_dir.join("libcompiler_rt.a")).unwrap();
++
++    println!("cargo:rustc-link-lib=static=compiler_rt");
++    println!("cargo:rustc-flags=-L native={}", out_dir.display());
++}
+diff --git a/sysroot/dummy.rs b/sysroot/dummy.rs
+new file mode 100644
+index 0000000..da27b7f
+--- /dev/null
++++ b/sysroot/dummy.rs
+@@ -0,0 +1,2 @@
++#![feature(no_core)]
++#![no_core]
+diff --git a/sysroot/rustc-sysroot b/sysroot/rustc-sysroot
+new file mode 100755
+index 0000000..328266b
+--- /dev/null
++++ b/sysroot/rustc-sysroot
+@@ -0,0 +1,16 @@
++#!/bin/bash
++
++if [[ "$@" == *"build-script-build"* ]]; then
++    IS_BUILD=y
++elif [[ "$*" != *"--target"* ]]; then
++    IS_BUILD=y
++else
++    IS_BUILD=
++fi
++
++if [ -n "$IS_BUILD" ]; then
++    exec rustc -C linker="$(echo "$BUILD_CC" | tr -d ' ')" -C link-args="$BUILD_CFLAGS" "$@"
++else
++    DEPS=`echo "$*" | grep -Eo 'dependency=[^ ]*/deps' | sed 's/^dependency=/-L /' | head -n 1`
++    exec rustc -C linker="$TARGET_CC" -C link-args="$TARGET_CFLAGS" --sysroot=/dev/null $DEPS "$@"
++fi

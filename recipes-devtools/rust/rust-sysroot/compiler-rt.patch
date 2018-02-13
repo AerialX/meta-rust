@@ -1,0 +1,37 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index a067581..8e6d617 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -7,12 +7,6 @@
+ # An important constraint of the build is that it only produces libraries
+ # based on the ability of the host toolchain to target various platforms.
+ 
+-# Check if compiler-rt is built as a standalone project.
+-if (CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR OR COMPILER_RT_STANDALONE_BUILD)
+-  project(CompilerRT C CXX ASM)
+-  set(COMPILER_RT_STANDALONE_BUILD TRUE)
+-endif()
+-
+ cmake_minimum_required(VERSION 3.4.3)
+ # FIXME:
+ # The OLD behavior (pre 3.2) for this policy is to not set the value of the 
+
+diff -ruN a/cmake/base-config-ix.cmake b/cmake/base-config-ix.cmake
+--- a/cmake/base-config-ix.cmake	2018-01-25 19:32:22.474390154 -0500
++++ b/cmake/base-config-ix.cmake	2018-01-25 19:42:03.812073136 -0500
+@@ -161,11 +161,11 @@
+       # clang's default CPU's. In the 64-bit case, we must also specify the ABI
+       # since the default ABI differs between gcc and clang.
+       # FIXME: Ideally, we would build the N32 library too.
+-      test_target_arch(mipsel "" "-mips32r2" "--target=mipsel-linux-gnu")
+-      test_target_arch(mips64el "" "-mips64r2" "--target=mips64el-linux-gnu" "-mabi=64")
++      test_target_arch(mipsel "" "-mips32r2")
++      test_target_arch(mips64el "" "-mips64r2" "-mabi=64")
+     elseif("${COMPILER_RT_DEFAULT_TARGET_ARCH}" MATCHES "mips")
+-      test_target_arch(mips "" "-mips32r2" "--target=mips-linux-gnu")
+-      test_target_arch(mips64 "" "-mips64r2" "--target=mips64-linux-gnu" "-mabi=64")
++      test_target_arch(mips "" "-mips32r2")
++      test_target_arch(mips64 "" "-mips64r2" "-mabi=64")
+     elseif("${COMPILER_RT_DEFAULT_TARGET_ARCH}" MATCHES "arm")
+       if(WIN32)
+         test_target_arch(arm "" "" "")
